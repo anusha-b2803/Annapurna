@@ -65,14 +65,24 @@ io.on('connection', (socket) => {
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
-// Serve Static Files in Production
+// Serve Static Files
+const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
+console.log(`🔍 Checking for static files at: ${frontendPath}`);
+
 if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../frontend/dist');
   app.use(express.static(frontendPath));
+  console.log('🚀 Serving static files in production mode');
 
   app.get('*', (req, res) => {
-    res.sendFile(path.resolve(frontendPath, 'index.html'));
+    res.sendFile(path.resolve(frontendPath, 'index.html'), (err) => {
+      if (err) {
+        console.error('❌ Error sending index.html:', err);
+        res.status(500).send('Frontend build not found. Ensure you ran "npm run build" in the frontend folder.');
+      }
+    });
   });
+} else {
+  console.log('ℹ️ Running in development mode (static files not served by backend)');
 }
 
 // MongoDB connection
