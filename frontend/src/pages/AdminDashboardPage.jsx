@@ -99,12 +99,11 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Stats Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {[
             { label: 'Total Community', value: stats.users.total, sub: `${stats.users.recentNew} new this week`, color: 'border-primary-500' },
             { label: 'Live Donations', value: stats.donations.active, sub: `${stats.donations.total} total life-time`, color: 'border-emerald-500' },
-            { label: 'NGO Requests', value: stats.requests.open, sub: `${stats.requests.fulfilled} fulfilled`, color: 'border-blue-500' },
-            { label: 'Fulfillment Rate', value: `${((stats.requests.fulfilled / (stats.requests.total || 1)) * 100).toFixed(0)}%`, sub: 'Target: 85%', color: 'border-purple-500' }
+            { label: 'NGO Requests', value: stats.requests.open, sub: `${stats.requests.fulfilled} fulfilled`, color: 'border-blue-500' }
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className={`bg-white p-8 rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 border-l-[12px] ${s.color}`}>
               <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{s.label}</div>
