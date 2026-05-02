@@ -65,6 +65,16 @@ io.on('connection', (socket) => {
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
+// Serve Static Files in Production
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../frontend/dist');
+  app.use(express.static(frontendPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(frontendPath, 'index.html'));
+  });
+}
+
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/annapurna')
   .then(() => {
