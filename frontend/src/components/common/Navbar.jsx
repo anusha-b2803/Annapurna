@@ -4,12 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 
 const navLinks = [
-  { path: '/dashboard', label: 'Dashboard', roles: ['donor', 'volunteer', 'orphanage', 'admin'] },
-  { path: '/donations', label: 'Donations', roles: ['donor', 'volunteer', 'orphanage', 'admin'] },
-  { path: '/requests', label: 'Requests', roles: ['orphanage', 'volunteer', 'admin', 'donor'] },
-  { path: '/map', label: 'Map', roles: ['donor', 'volunteer', 'orphanage', 'admin'] },
-  { path: '/community', label: 'Community', roles: ['donor', 'volunteer', 'orphanage', 'admin'] },
-  { path: '/admin', label: 'Admin', roles: ['admin'] },
+  { path: '/dashboard', label: 'Dashboard', roles: ['donor', 'volunteer', 'orphanage'] },
+  { path: '/donations', label: 'Donations', roles: ['donor', 'volunteer', 'orphanage'] },
+  { path: '/requests', label: 'Requests', roles: ['orphanage', 'volunteer', 'donor'] },
+  { path: '/map', label: 'Map', roles: ['donor', 'volunteer', 'orphanage'] },
+  { path: '/community', label: 'Community', roles: ['donor', 'volunteer', 'orphanage'] },
+  { path: '/admin', label: 'Admin Panel', roles: ['admin'] },
 ];
 
 export default function Navbar() {

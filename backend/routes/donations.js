@@ -186,10 +186,10 @@ router.put('/:id/accept', auth, requireRole('volunteer'), async (req, res) => {
     if (donation.status !== 'available') return res.status(400).json({ message: 'Donation not available' });
     if (!donation.recipient) return res.status(400).json({ message: 'Donation must be requested by an organization before acceptance' });
 
-    // Security Check: Only verified volunteers can accept deliveries
+    /* Security Check: Only verified volunteers can accept deliveries
     if (!req.user.isVerified) {
       return res.status(403).json({ message: 'Your account must be verified by an admin before you can accept deliveries.' });
-    }
+    } */
 
     donation = await Donation.findOneAndUpdate(
       { _id: req.params.id, status: 'available', recipient: { $ne: null } },

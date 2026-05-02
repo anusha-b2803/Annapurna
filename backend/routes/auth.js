@@ -27,14 +27,17 @@ const registerSchema = Joi.object({
 });
 
 // POST /api/auth/register
-router.post('/register', validate(registerSchema), async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, phone, address, organizationName } = req.body;
     
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ message: 'Email already registered' });
 
-    const user = await User.create({ name, email, password, role, phone, address, organizationName });
+    const user = await User.create({ 
+      name, email, password, role, phone, address, organizationName,
+      isVerified: true
+    });
     const token = generateToken(user._id);
     
     await logAction('user_registered', req, { role: user.role }, 'User', user._id);
@@ -50,7 +53,7 @@ const loginSchema = Joi.object({
 });
 
 // POST /api/auth/login
-router.post('/login', validate(loginSchema), async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });

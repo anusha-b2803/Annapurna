@@ -87,12 +87,12 @@ router.put('/notifications/read', auth, async (req, res) => {
 router.get('/leaderboard', auth, async (req, res) => {
   try {
     const donors = await User.find({ role: 'donor', totalDonations: { $gt: 0 } })
-      .select('name avatar totalDonations rating')
+      .select('name avatar totalDonations rating organizationName')
       .sort({ totalDonations: -1 })
       .limit(10);
 
     const volunteers = await User.find({ role: 'volunteer', totalDeliveries: { $gt: 0 } })
-      .select('name avatar totalDeliveries rating')
+      .select('name avatar totalDeliveries rating organizationName')
       .sort({ totalDeliveries: -1 })
       .limit(10);
 

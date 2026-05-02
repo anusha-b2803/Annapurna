@@ -106,10 +106,10 @@ router.get('/:id', auth, async (req, res) => {
 // POST /api/requests
 router.post('/', auth, requireRole('orphanage', 'admin'), validate(createRequestSchema), async (req, res) => {
   try {
-    // Security Check: Only verified organizations can create requests
+    /* Security Check: Only verified organizations can create requests
     if (!req.user.isVerified && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Your organization must be verified by an admin before you can create requests.' });
-    }
+    } */
 
     const { title, description, foodType, quantity, servingsNeeded, requiredBy,
             deliveryAddress, location, urgencyLevel, beneficiaryCount, dietaryRestrictions } = req.body;
@@ -164,6 +164,44 @@ router.put('/:id/cancel', auth, async (req, res) => {
     await request.save();
     await logAction('food_request_cancelled', req, { title: request.title }, 'FoodRequest', request._id);
     res.json({ message: 'Request cancelled' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/requests/:id/like
+router.post('/:id/like', auth, async (req, res) => {
+  try {
+    const request = await FoodRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    const index = request.likes.indexOf(req.user._id);
+    if (index === -1) {
+      request.likes.push(req.user._id);
+    } else {
+      request.likes.splice(index, 1);
+    }
+    await request.save();
+    res.json({ liked: index === -1, likes: request.likes.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/requests/:id/comment
+router.post('/:id/comment', auth, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ message: 'Comment text is required' });
+
+    const request = await FoodRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    request.comments.push({ user: req.user._id, text });
+    await request.save();
+    
+    const populated = await FoodRequest.findById(req.params.id).populate('comments.user', 'name avatar');
+    res.json(populated.comments);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

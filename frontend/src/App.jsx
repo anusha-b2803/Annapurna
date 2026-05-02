@@ -18,6 +18,7 @@ import TrackingPage from './pages/TrackingPage';
 import CommunityPage from './pages/CommunityPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import RequestDetailPage from './pages/RequestDetailPage';
 import MapPage from './pages/MapPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/donations/new" element={<PrivateRoute roles={['donor', 'admin']}><CreateDonationPage /></PrivateRoute>} />
       <Route path="/donations/:id" element={<PrivateRoute><DonationDetailPage /></PrivateRoute>} />
       <Route path="/requests" element={<PrivateRoute><RequestsPage /></PrivateRoute>} />
+      <Route path="/requests/:id" element={<PrivateRoute><RequestDetailPage /></PrivateRoute>} />
       <Route path="/requests/new" element={<PrivateRoute roles={['orphanage', 'admin']}><CreateRequestPage /></PrivateRoute>} />
       <Route path="/tracking/:donationId" element={<PrivateRoute><TrackingPage /></PrivateRoute>} />
       <Route path="/map" element={<PrivateRoute><MapPage /></PrivateRoute>} />
@@ -61,7 +63,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <SocketProvider>
           <AppRoutes />

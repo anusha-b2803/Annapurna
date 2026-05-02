@@ -119,6 +119,26 @@ router.get('/donations', auth, requireRole('admin'), async (req, res) => {
   }
 });
 
+// GET /api/admin/requests
+router.get('/requests', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    let query = {};
+    if (status) query.status = status;
+
+    const requests = await FoodRequest.find(query)
+      .populate('requester', 'name email organizationName')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await FoodRequest.countDocuments(query);
+    res.json({ requests, total });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/admin/analytics/daily
 router.get('/analytics/daily', auth, requireRole('admin'), async (req, res) => {
   try {

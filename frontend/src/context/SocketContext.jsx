@@ -14,7 +14,7 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    const s = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
+    const s = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
       auth: { token: localStorage.getItem('annapurna_token') },
       transports: ['websocket', 'polling'],
     });

@@ -22,6 +22,12 @@ const foodRequestSchema = new mongoose.Schema({
   beneficiaryCount: { type: Number },
   dietaryRestrictions: [{ type: String }],
   fulfilledBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Donation' }],
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  comments: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
 }, { timestamps: true });
 
 foodRequestSchema.index({ location: '2dsphere' });

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import Navbar from '../components/common/Navbar';
@@ -39,28 +39,34 @@ const roleGreeting = {
 export default function DashboardPage() {
   const { user } = useAuth();
   const socket = useSocket();
+  const navigate = useNavigate();
   const [donations, setDonations] = useState([]);
   const [myActivity, setMyActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [liveCount, setLiveCount] = useState(0);
-  const meta = roleGreeting[user.role];
+  const [activeTab, setActiveTab] = useState('active'); // active, history
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [donRes, myRes] = await Promise.all([
-          api.get('/donations?limit=6'),
-          user.role === 'donor' ? api.get('/donations/my') : Promise.resolve({ data: [] }),
-        ]);
-        setDonations(donRes.data.donations || []);
-        setLiveCount(donRes.data.total || 0);
-        if (Array.isArray(myRes.data)) setMyActivity(myRes.data.slice(0, 3));
-      } catch (err) {
-        toast.error('Failed to load dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (user.role === 'admin') navigate('/admin');
+  }, [user.role, navigate]);
+
+  const fetchData = async () => {
+    try {
+      const [donRes, myRes] = await Promise.all([
+        api.get('/donations?limit=6'),
+        api.get('/donations/my'),
+      ]);
+      setDonations(donRes.data.donations || []);
+      setLiveCount(donRes.data.total || 0);
+      if (Array.isArray(myRes.data)) setMyActivity(myRes.data);
+    } catch (err) {
+      toast.error('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [user.role]);
 
@@ -77,6 +83,10 @@ export default function DashboardPage() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const meta = roleGreeting[user.role] || roleGreeting.donor;
+
+  const activeDeliveries = myActivity.filter(d => d.status !== 'delivered' && d.status !== 'cancelled' && d.status !== 'expired');
+  const pastDeliveries = myActivity.filter(d => d.status === 'delivered' || d.status === 'cancelled' || d.status === 'expired');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,34 +122,71 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-          {[
-            { label: 'Total Donations', value: user.totalDonations || 0, icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> },
-            { label: 'Deliveries', value: user.totalDeliveries || 0, icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> },
-            { label: 'Trust Rating', value: user.rating?.toFixed(1) || '5.0', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.175 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg> },
-            { label: 'Verified Status', value: user.isVerified ? 'Verified' : 'Pending', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> },
-          ].map((stat, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center mb-4">{stat.icon}</div>
-              <div className="text-3xl font-black text-gray-900">{stat.value}</div>
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{stat.label}</div>
-            </motion.div>
-          ))}
+        {/* My Activity Tabs */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xl font-black text-gray-900 flex items-center gap-3">
+               {user.role === 'volunteer' ? 'My Delivery Network' : 
+                user.role === 'donor' ? 'My Contributions' : 
+                'My Food Requests'}
+            </h2>
+            <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
+               {['active', 'history'].map(tab => (
+                 <button
+                   key={tab}
+                   onClick={() => setActiveTab(tab)}
+                   className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                     activeTab === tab ? 'bg-primary-600 text-white shadow-lg shadow-primary-200' : 'text-gray-400 hover:text-gray-600'
+                   }`}
+                 >
+                   {tab}
+                 </button>
+               ))}
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-12"><Spinner /></div>
+          ) : (
+            <AnimatePresence mode="wait">
+               <motion.div
+                 key={activeTab}
+                 initial={{ opacity: 0, x: 20 }}
+                 animate={{ opacity: 1, x: 0 }}
+                 exit={{ opacity: 0, x: -20 }}
+                 transition={{ duration: 0.2 }}
+               >
+                 {(activeTab === 'active' ? activeDeliveries : pastDeliveries).length === 0 ? (
+                   <div className="bg-white rounded-[2.5rem] p-16 text-center border border-dashed border-gray-200">
+                      <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">
+                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </div>
+                      <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">No {activeTab} {user.role === 'volunteer' ? 'deliveries' : 'activity'} to show</p>
+                   </div>
+                 ) : (
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {(activeTab === 'active' ? activeDeliveries : pastDeliveries).map(item => (
+                        <DonationCard key={item._id} donation={item} isOwnerView />
+                      ))}
+                   </div>
+                 )}
+               </motion.div>
+            </AnimatePresence>
+          )}
         </div>
 
-        {/* Live Donations Feed */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-6">
+        {/* Nearby Opportunities */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-black text-gray-900">Nearby Opportunities</h2>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 rounded-full">
+              <div className="px-3 py-1 bg-green-50 rounded-full flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-extrabold text-green-700 uppercase tracking-wider">Live</span>
+                <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">Live Feed</span>
               </div>
             </div>
             <Link to="/donations" className="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1 group">
-              View All <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+              Explore All <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
             </Link>
           </div>
 
@@ -147,15 +194,7 @@ export default function DashboardPage() {
             <Spinner center />
           ) : donations.length === 0 ? (
             <div className="bg-white rounded-[2.5rem] p-16 text-center border border-dashed border-gray-200">
-              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
-                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4m16 0L12 4m8 8l-8 8"/></svg>
-              </div>
-              <p className="text-gray-500 font-medium">No active donations in your area right now.</p>
-              {user.role === 'donor' && (
-                <Link to="/donations/new" className="mt-6 inline-block bg-primary-600 text-white font-bold px-8 py-3 rounded-2xl shadow-lg shadow-primary-100">
-                  Post Initial Donation
-                </Link>
-              )}
+               <p className="text-gray-500 font-medium">No live donations in your area.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

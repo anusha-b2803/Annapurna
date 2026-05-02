@@ -58,6 +58,21 @@ export default function TrackingPage() {
     fetchTrackingData();
   }, [donationId, navigate]);
 
+  const handleStatusAction = async (action) => {
+    try {
+      const res = await api.put(`/donations/${donationId}/${action}`);
+      setDonation(res.data);
+      const messages = {
+        pickup: 'Marked as picked up',
+        ontheway: 'Marked as on the way!',
+        deliver: 'Delivery completed! Great job!'
+      };
+      toast.success(messages[action] || 'Status updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed');
+    }
+  };
+
   useEffect(() => {
     if (!socket || !donationId || !donation) return;
     socket.emit('join_room', `tracking_${donationId}`);
@@ -225,7 +240,21 @@ export default function TrackingPage() {
             </div>
           </div>
 
-          <div className="p-10 border-t border-gray-50">
+          <div className="p-10 border-t border-gray-50 space-y-4">
+            {donation.volunteer?._id === user._id && donation.status !== 'delivered' && (
+              <div className="space-y-4">
+                <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest text-center mb-4">Quick Actions</p>
+                {donation.status === 'accepted' && (
+                  <button onClick={() => handleStatusAction('pickup')} className="w-full bg-primary-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-200 hover:bg-primary-700 transition-all active:scale-95">Mark Picked Up</button>
+                )}
+                {donation.status === 'picked_up' && (
+                  <button onClick={() => handleStatusAction('ontheway')} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">Mark On The Way</button>
+                )}
+                {donation.status === 'on_the_way' && (
+                  <button onClick={() => handleStatusAction('deliver')} className="w-full bg-emerald-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">Mark Delivered</button>
+                )}
+              </div>
+            )}
             <button 
               onClick={() => navigate('/dashboard')}
               className="w-full bg-gray-50 text-gray-900 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-gray-100 transition-all active:scale-95 border border-gray-100"
