@@ -14,7 +14,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -23,7 +22,6 @@ export default function ProfilePage() {
         const res = await api.get(`/social/profile/${id}`);
         setUser(res.data.profile);
         setDonations(res.data.donations || []);
-        setIsFollowing(res.data.profile.followers?.some(f => f._id === currentUser._id));
       } catch (err) {
         toast.error('Failed to load profile');
       } finally {
@@ -31,17 +29,7 @@ export default function ProfilePage() {
       }
     };
     fetchProfile();
-  }, [id, currentUser._id]);
-
-  const handleFollow = async () => {
-    try {
-      await api.post(`/social/follow/${id}`);
-      setIsFollowing(!isFollowing);
-      toast.success(isFollowing ? 'Unfollowed' : 'Following');
-    } catch (err) {
-      toast.error('Action failed');
-    }
-  };
+  }, [id]);
 
   if (loading) return <Spinner center />;
   if (!user) return <div className="text-center py-20 text-gray-500 font-bold">User not found</div>;
@@ -65,12 +53,8 @@ export default function ProfilePage() {
                 )}
               </div>
               <div className="flex gap-4 mb-4">
-                {currentUser._id === id ? (
+                {currentUser._id === id && (
                   <Link to="/settings" className="bg-primary-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-primary-700 transition-all shadow-lg active:scale-95">Edit Profile</Link>
-                ) : (
-                  <button onClick={handleFollow} className={`px-8 py-3 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95 ${isFollowing ? 'bg-gray-100 text-gray-600' : 'bg-primary-600 text-white'}`}>
-                    {isFollowing ? 'Following' : 'Follow'}
-                  </button>
                 )}
               </div>
             </div>
@@ -91,12 +75,12 @@ export default function ProfilePage() {
                 
                 <div className="flex items-center gap-10">
                   <div className="group cursor-default">
-                    <div className="font-black text-gray-900 text-3xl group-hover:text-primary-600 transition-colors">{user.followers?.length || 0}</div>
-                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Followers</div>
+                    <div className="font-black text-gray-900 text-3xl group-hover:text-primary-600 transition-colors">{user.totalDonations || 0}</div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Total Donations</div>
                   </div>
                   <div className="group cursor-default">
-                    <div className="font-black text-gray-900 text-3xl group-hover:text-primary-600 transition-colors">{user.following?.length || 0}</div>
-                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Following</div>
+                    <div className="font-black text-gray-900 text-3xl group-hover:text-primary-600 transition-colors">{user.totalDeliveries || 0}</div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Total Deliveries</div>
                   </div>
                   <div className="group cursor-default">
                     <div className="font-black text-gray-900 text-3xl group-hover:text-primary-600 transition-colors">{user.rating?.toFixed(1) || '5.0'}</div>
@@ -104,7 +88,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Contact Info (Visible to owner or participants if enabled by API) */}
+                {/* Contact Info */}
                 {(user.phone || user.address) && (
                   <div className="mt-8 pt-8 border-t border-gray-100 flex flex-wrap gap-6">
                     {user.phone && (

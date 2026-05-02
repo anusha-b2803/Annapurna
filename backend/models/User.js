@@ -21,8 +21,6 @@ const userSchema = new mongoose.Schema({
   organizationName: { type: String }, // for orphanages
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
-  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   totalDonations: { type: Number, default: 0 },
   totalDeliveries: { type: Number, default: 0 },
   rating: { type: Number, default: 0 },

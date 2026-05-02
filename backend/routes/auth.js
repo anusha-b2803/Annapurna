@@ -5,7 +5,6 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { logAction } = require('../utils/logger');
-const { sendEmail } = require('../utils/mailer');
 
 const validate = require('../middleware/validate');
 const Joi = require('joi');
@@ -113,26 +112,13 @@ router.post('/forgot-password', validate(Joi.object({ email: Joi.string().email(
     user.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 mins
     await user.save();
 
-    // Send Email
-    await sendEmail({
-      to: user.email,
-      subject: 'Annapurna Password Reset Request',
-      text: `You requested a password reset. Use this token to reset your password: ${resetToken}`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #10b981;">Password Reset Request</h2>
-          <p>You requested a password reset for your Annapurna account.</p>
-          <p>Please use the following token to reset your password:</p>
-          <div style="background: #f3f4f6; padding: 10px; font-weight: bold; font-size: 1.2rem; text-align: center; border-radius: 5px;">
-            ${resetToken}
-          </div>
-          <p style="color: #6b7280; font-size: 0.8rem; margin-top: 20px;">This token will expire in 30 minutes.</p>
-        </div>
-      `
-    });
-
     await logAction('forgot_password_requested', req, { email: user.email }, 'User', user._id);
-    res.json({ message: 'Password reset link sent (Check your email)', resetToken });
+    
+    // In production, you would send an email. For now, we return the token directly as the mail service is removed.
+    res.json({ 
+      message: 'Password reset token generated (Mail service disabled)', 
+      resetToken 
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
