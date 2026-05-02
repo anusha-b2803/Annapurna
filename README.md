@@ -62,11 +62,12 @@ FSD_MP/
    ```bash
    npm install
    ```
-3. Create a `.env` file in the `backend` root:
+3. Create a `.env` file in the `backend` root (see `.env.example`):
    ```env
    PORT=5000
    MONGODB_URI=your_mongodb_uri
    JWT_SECRET=your_jwt_secret
+   CLIENT_URL=your_frontend_url
    ```
 4. Start the server:
    ```bash
@@ -82,10 +83,24 @@ FSD_MP/
    ```bash
    npm install
    ```
-3. Start the development server:
+3. Create a `.env` file in the `frontend` root (see `.env.example`):
+   ```env
+   VITE_API_URL=your_backend_api_url
+   VITE_SOCKET_URL=your_backend_url
+   ```
+4. Start the development server:
    ```bash
    npm run dev
    ```
+
+## 🚀 Deployment Checklist
+
+Before deploying to production (e.g., Render, Vercel, Railway):
+1. **Environment Variables**: Ensure all variables from `.env.example` are set on your hosting platform.
+2. **CORS Configuration**: Set `CLIENT_URL` in the backend to your actual frontend domain.
+3. **Database**: Use a production MongoDB instance (like MongoDB Atlas).
+4. **Build Step**: Run `npm run build` in the frontend and ensure the `dist` folder is served or uploaded.
+5. **Security**: Change the `JWT_SECRET` to a strong, random string.
 
 ## 🤝 Contributing
 
