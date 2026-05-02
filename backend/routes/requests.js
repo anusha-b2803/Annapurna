@@ -3,9 +3,39 @@ const router = express.Router();
 const FoodRequest = require('../models/FoodRequest');
 const Notification = require('../models/Notification');
 const { auth, requireRole } = require('../middleware/auth');
+const { logAction } = require('../utils/logger');
+const validate = require('../middleware/validate');
+const Joi = require('joi');
+
+const getRequestsSchema = Joi.object({
+  lat: Joi.number().min(-90).max(90),
+  lng: Joi.number().min(-180).max(180),
+  radius: Joi.number().integer().min(0).default(20000),
+  status: Joi.string().valid('open', 'fulfilled', 'cancelled').default('open'),
+  urgencyLevel: Joi.string().valid('low', 'medium', 'high', 'emergency'),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20)
+});
+
+const createRequestSchema = Joi.object({
+  title: Joi.string().required().min(3).max(100),
+  description: Joi.string().required().min(10),
+  foodType: Joi.string().required(),
+  quantity: Joi.string().required(),
+  servingsNeeded: Joi.number().integer().min(1).required(),
+  requiredBy: Joi.date().greater('now').required(),
+  deliveryAddress: Joi.string().required(),
+  location: Joi.object({
+    type: Joi.string().valid('Point').default('Point'),
+    coordinates: Joi.array().items(Joi.number()).length(2).required()
+  }).required(),
+  urgencyLevel: Joi.string().valid('low', 'medium', 'high', 'emergency').default('medium'),
+  beneficiaryCount: Joi.number().integer().min(1),
+  dietaryRestrictions: Joi.array().items(Joi.string())
+});
 
 // GET /api/requests
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, validate(getRequestsSchema, 'query'), async (req, res) => {
   try {
     const { lat, lng, radius = 20000, status = 'open', urgencyLevel, page = 1, limit = 20 } = req.query;
     let query = { status };
@@ -57,6 +87,16 @@ router.get('/:id', auth, async (req, res) => {
     const request = await FoodRequest.findById(req.params.id)
       .populate('requester', 'name avatar phone organizationName address');
     if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    // PII Protection: Hide phone/address unless owner or involved
+    const isOwner = request.requester._id.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      const plainRequest = request.toObject();
+      delete plainRequest.requester.phone;
+      delete plainRequest.requester.address;
+      return res.json(plainRequest);
+    }
+
     res.json(request);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -64,8 +104,13 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/requests
-router.post('/', auth, requireRole('orphanage', 'admin'), async (req, res) => {
+router.post('/', auth, requireRole('orphanage', 'admin'), validate(createRequestSchema), async (req, res) => {
   try {
+    // Security Check: Only verified organizations can create requests
+    if (!req.user.isVerified && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Your organization must be verified by an admin before you can create requests.' });
+    }
+
     const { title, description, foodType, quantity, servingsNeeded, requiredBy,
             deliveryAddress, location, urgencyLevel, beneficiaryCount, dietaryRestrictions } = req.body;
 
@@ -76,6 +121,7 @@ router.post('/', auth, requireRole('orphanage', 'admin'), async (req, res) => {
     });
 
     await request.populate('requester', 'name avatar organizationName');
+    await logAction('food_request_created', req, { title: request.title }, 'FoodRequest', request._id);
 
     const io = req.app.get('io');
     io.emit('new_food_request', request);
@@ -94,7 +140,12 @@ router.put('/:id', auth, async (req, res) => {
     if (request.requester.toString() !== req.user._id.toString() && req.user.role !== 'admin')
       return res.status(403).json({ message: 'Not authorized' });
 
-    const updated = await FoodRequest.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { title, description, servingsNeeded, urgencyLevel, beneficiaryCount, dietaryRestrictions } = req.body;
+    const updated = await FoodRequest.findByIdAndUpdate(
+      req.params.id, 
+      { title, description, servingsNeeded, urgencyLevel, beneficiaryCount, dietaryRestrictions }, 
+      { new: true, runValidators: true }
+    );
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -111,6 +162,7 @@ router.put('/:id/cancel', auth, async (req, res) => {
 
     request.status = 'cancelled';
     await request.save();
+    await logAction('food_request_cancelled', req, { title: request.title }, 'FoodRequest', request._id);
     res.json({ message: 'Request cancelled' });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -5,10 +5,24 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 
 dotenv.config();
 
 const app = express();
+
+// Rate Limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 mins
+  max: 20, // limit each IP to 20 requests per window
+  message: { message: 'Too many login attempts, please try again after 15 minutes' }
+});
+
+const feedbackLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // limit each IP to 50 comments/likes per hour
+  message: { message: 'Action limit reached, please try again later' }
+});
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -33,12 +47,14 @@ app.set('io', io);
 
 // Routes
 app.use('/api/public', require('./routes/public'));
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/donations', require('./routes/donations'));
 app.use('/api/requests', require('./routes/requests'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api/social', require('./routes/social'));
+app.use('/api/social', feedbackLimiter, require('./routes/social'));
 app.use('/api/tracking', require('./routes/tracking'));
+
+const TrackingPath = require('./models/TrackingPath');
 
 // Socket.io events
 io.on('connection', (socket) => {
@@ -53,8 +69,22 @@ io.on('connection', (socket) => {
     socket.leave(room);
   });
 
-  socket.on('volunteer_location_update', (data) => {
+  socket.on('volunteer_location_update', async (data) => {
+    // Broadcast to the room
     io.to(`tracking_${data.donationId}`).emit('location_updated', data);
+    
+    // Persist to DB (sampled or always, for now always since updates are usually throttled on frontend)
+    try {
+      if (data.donationId && data.lat && data.lng) {
+        await TrackingPath.findOneAndUpdate(
+          { donation: data.donationId },
+          { $push: { path: { lat: data.lat, lng: data.lng, timestamp: new Date() } } },
+          { upsert: true }
+        );
+      }
+    } catch (err) {
+      console.error('Failed to persist tracking path:', err);
+    }
   });
 
   socket.on('disconnect', () => {

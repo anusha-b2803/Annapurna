@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,24 +34,28 @@ export default function TrackingPage() {
   const socket = useSocket();
   const [donation, setDonation] = useState(null);
   const [vLocation, setVLocation] = useState(null);
+  const [historyPath, setHistoryPath] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDonation = async () => {
+    const fetchTrackingData = async () => {
       try {
-        const res = await api.get(`/donations/${donationId}`);
-        setDonation(res.data);
-        if (res.data.location?.coordinates) {
-          setVLocation([res.data.location.coordinates[1], res.data.location.coordinates[0]]);
+        const res = await api.get(`/tracking/${donationId}`);
+        setDonation(res.data.donation);
+        setHistoryPath(res.data.path || []);
+        
+        const loc = res.data.donation.location?.coordinates;
+        if (loc) {
+          setVLocation([loc[1], loc[0]]);
         }
       } catch (err) {
-        toast.error('Failed to load mission data');
+        toast.error('Failed to load tracking data');
         navigate('/dashboard');
       } finally {
         setLoading(false);
       }
     };
-    fetchDonation();
+    fetchTrackingData();
   }, [donationId, navigate]);
 
   useEffect(() => {
@@ -77,7 +81,9 @@ export default function TrackingPage() {
 
     socket.on('location_updated', (data) => {
       if (donation.volunteer?._id !== user._id) {
-        setVLocation([data.lat, data.lng]);
+        const newPos = [data.lat, data.lng];
+        setVLocation(newPos);
+        setHistoryPath(prev => [...prev, { lat: data.lat, lng: data.lng }]);
       }
     });
 
@@ -99,6 +105,9 @@ export default function TrackingPage() {
   const statusSteps = ['available', 'accepted', 'picked_up', 'on_the_way', 'delivered'];
   const currentStep = statusSteps.indexOf(donation.status);
 
+  // Format path for Leaflet
+  const polylinePositions = historyPath.map(p => [p.lat, p.lng]);
+
   return (
     <div className="min-h-screen bg-[#fcfdfd] flex flex-col">
       <Navbar />
@@ -108,6 +117,11 @@ export default function TrackingPage() {
         <div className="flex-1 h-[50vh] lg:h-auto relative z-0">
           <MapContainer center={vLocation || [20.5937, 78.9629]} zoom={13} style={{ height: '100%', width: '100%' }} className="grayscale-[0.2] contrast-[1.1]">
             <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+            
+            {polylinePositions.length > 1 && (
+              <Polyline positions={polylinePositions} color="#10b981" weight={4} opacity={0.6} dashArray="10, 10" />
+            )}
+
             {vLocation && (
               <Marker position={vLocation}>
                 <Popup>

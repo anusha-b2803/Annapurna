@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Donation = require('../models/Donation');
 const FoodRequest = require('../models/FoodRequest');
 const { auth, requireRole } = require('../middleware/auth');
+const { logAction } = require('../utils/logger');
 
 // GET /api/admin/stats
 router.get('/stats', auth, requireRole('admin'), async (req, res) => {
@@ -40,8 +41,18 @@ router.get('/stats', auth, requireRole('admin'), async (req, res) => {
   }
 });
 
+const validate = require('../middleware/validate');
+const Joi = require('joi');
+
+const getUsersSchema = Joi.object({
+  role: Joi.string().valid('donor', 'volunteer', 'orphanage', 'admin', ''),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  search: Joi.string().allow('')
+});
+
 // GET /api/admin/users
-router.get('/users', auth, requireRole('admin'), async (req, res) => {
+router.get('/users', auth, requireRole('admin'), validate(getUsersSchema, 'query'), async (req, res) => {
   try {
     const { role, page = 1, limit = 20, search } = req.query;
     let query = {};
@@ -68,6 +79,8 @@ router.put('/users/:id/toggle-active', auth, requireRole('admin'), async (req, r
     if (!user) return res.status(404).json({ message: 'User not found' });
     user.isActive = !user.isActive;
     await user.save();
+    
+    await logAction(`admin_user_${user.isActive ? 'activated' : 'deactivated'}`, req, { targetUser: user.email }, 'User', user._id);
     res.json({ message: `User ${user.isActive ? 'activated' : 'deactivated'}`, user });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -78,6 +91,7 @@ router.put('/users/:id/toggle-active', auth, requireRole('admin'), async (req, r
 router.put('/users/:id/verify', auth, requireRole('admin'), async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { isVerified: true }, { new: true });
+    await logAction('admin_user_verified', req, { targetUser: user.email }, 'User', user._id);
     res.json({ message: 'User verified', user });
   } catch (err) {
     res.status(500).json({ message: err.message });

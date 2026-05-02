@@ -5,9 +5,22 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const FoodRequest = require('../models/FoodRequest');
 const { auth, requireRole } = require('../middleware/auth');
+const { logAction } = require('../utils/logger');
+const validate = require('../middleware/validate');
+const Joi = require('joi');
+
+const getDonationsSchema = Joi.object({
+  lat: Joi.number().min(-90).max(90),
+  lng: Joi.number().min(-180).max(180),
+  radius: Joi.number().integer().min(0).default(10000),
+  status: Joi.string().valid('available', 'accepted', 'picked_up', 'on_the_way', 'delivered', 'cancelled').default('available'),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  foodType: Joi.string()
+});
 
 // GET /api/donations - get all available donations (with optional geo filter)
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, validate(getDonationsSchema, 'query'), async (req, res) => {
   try {
     const { lat, lng, radius = 10000, status = 'available', page = 1, limit = 20, foodType } = req.query;
     let query = { status };
@@ -82,8 +95,28 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+const createDonationSchema = Joi.object({
+  title: Joi.string().required().min(3).max(100),
+  description: Joi.string().required().min(10),
+  foodType: Joi.string().required(),
+  quantity: Joi.string().required(),
+  servings: Joi.number().integer().min(1).required(),
+  expiryTime: Joi.date().greater('now').required()
+    .messages({ 'date.greater': 'Food expiry time must be in the future' }),
+  pickupAddress: Joi.string().required(),
+  location: Joi.object({
+    type: Joi.string().valid('Point').default('Point'),
+    coordinates: Joi.array().items(Joi.number()).length(2).required()
+  }).required(),
+  isUrgent: Joi.boolean().default(false),
+  dietaryInfo: Joi.array().items(Joi.string()),
+  images: Joi.array().items(Joi.string()),
+  recipient: Joi.string().allow(null, ''),
+  requestId: Joi.string().allow(null, '')
+});
+
 // POST /api/donations - create a donation
-router.post('/', auth, requireRole('donor', 'admin'), async (req, res) => {
+router.post('/', auth, requireRole('donor', 'admin'), validate(createDonationSchema), async (req, res) => {
   try {
     const { title, description, foodType, quantity, servings, expiryTime,
             pickupAddress, location, isUrgent, dietaryInfo, images, recipient, requestId } = req.body;
@@ -103,6 +136,7 @@ router.post('/', auth, requireRole('donor', 'admin'), async (req, res) => {
     }
 
     await donation.populate('donor', 'name avatar');
+    await logAction('donation_created', req, { title: donation.title }, 'Donation', donation._id);
 
     // Notify all volunteers via socket
     const io = req.app.get('io');
@@ -147,16 +181,29 @@ router.put('/:id/request', auth, requireRole('orphanage'), async (req, res) => {
 // PUT /api/donations/:id/accept - volunteer accepts a donation
 router.put('/:id/accept', auth, requireRole('volunteer'), async (req, res) => {
   try {
-    const donation = await Donation.findById(req.params.id);
+    let donation = await Donation.findById(req.params.id);
     if (!donation) return res.status(404).json({ message: 'Donation not found' });
     if (donation.status !== 'available') return res.status(400).json({ message: 'Donation not available' });
     if (!donation.recipient) return res.status(400).json({ message: 'Donation must be requested by an organization before acceptance' });
 
-    donation.status = 'accepted';
-    donation.volunteer = req.user._id;
-    donation.acceptedAt = new Date();
-    await donation.save();
-    await donation.populate(['donor', 'volunteer', 'recipient']);
+    // Security Check: Only verified volunteers can accept deliveries
+    if (!req.user.isVerified) {
+      return res.status(403).json({ message: 'Your account must be verified by an admin before you can accept deliveries.' });
+    }
+
+    donation = await Donation.findOneAndUpdate(
+      { _id: req.params.id, status: 'available', recipient: { $ne: null } },
+      { 
+        status: 'accepted',
+        volunteer: req.user._id,
+        acceptedAt: new Date()
+      },
+      { new: true }
+    ).populate(['donor', 'volunteer', 'recipient']);
+
+    if (!donation) return res.status(400).json({ message: 'Donation not available or not requested by NGO' });
+
+    await logAction('donation_accepted', req, { title: donation.title }, 'Donation', donation._id);
 
     const io = req.app.get('io');
     io.emit('donation_accepted', donation);
@@ -195,9 +242,13 @@ router.put('/:id/pickup', auth, requireRole('volunteer'), async (req, res) => {
     if (!donation || donation.volunteer?.toString() !== req.user._id.toString())
       return res.status(403).json({ message: 'Not authorized' });
 
+    if (donation.status !== 'accepted')
+      return res.status(400).json({ message: 'Donation must be accepted before pickup' });
+
     donation.status = 'picked_up';
     donation.pickedUpAt = new Date();
     await donation.save();
+    await logAction('donation_picked_up', req, { title: donation.title }, 'Donation', donation._id);
 
     const io = req.app.get('io');
     io.to(`tracking_${donation._id}`).emit('status_changed', { status: 'picked_up', donation });
@@ -215,8 +266,12 @@ router.put('/:id/ontheway', auth, requireRole('volunteer'), async (req, res) => 
     if (!donation || donation.volunteer?.toString() !== req.user._id.toString())
       return res.status(403).json({ message: 'Not authorized' });
 
+    if (donation.status !== 'picked_up')
+      return res.status(400).json({ message: 'Donation must be picked up before marking as on the way' });
+
     donation.status = 'on_the_way';
     await donation.save();
+    await logAction('donation_ontheway', req, { title: donation.title }, 'Donation', donation._id);
 
     const io = req.app.get('io');
     io.to(`tracking_${donation._id}`).emit('status_changed', { status: 'on_the_way', donation });
@@ -234,9 +289,13 @@ router.put('/:id/deliver', auth, requireRole('volunteer'), async (req, res) => {
     if (!donation || donation.volunteer?.toString() !== req.user._id.toString())
       return res.status(403).json({ message: 'Not authorized' });
 
+    if (donation.status !== 'on_the_way')
+      return res.status(400).json({ message: 'Donation must be "on the way" before marking as delivered' });
+
     donation.status = 'delivered';
     donation.deliveredAt = new Date();
     await donation.save();
+    await logAction('donation_delivered', req, { title: donation.title }, 'Donation', donation._id);
 
     await User.findByIdAndUpdate(req.user._id, { $inc: { totalDeliveries: 1 } });
 
@@ -292,8 +351,15 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const donation = await Donation.findById(req.params.id);
     if (!donation) return res.status(404).json({ message: 'Not found' });
+    
+    // Auth Check
     if (donation.donor.toString() !== req.user._id.toString() && req.user.role !== 'admin')
       return res.status(403).json({ message: 'Not authorized' });
+
+    // State Machine Check: Cannot cancel if already picked up or delivered
+    if (['picked_up', 'on_the_way', 'delivered'].includes(donation.status)) {
+      return res.status(400).json({ message: `Cannot cancel a donation that is already ${donation.status.replace('_', ' ')}` });
+    }
 
     donation.status = 'cancelled';
     await donation.save();

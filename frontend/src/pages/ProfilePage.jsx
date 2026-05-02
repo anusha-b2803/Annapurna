@@ -103,6 +103,34 @@ export default function ProfilePage() {
                     <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Trust Rating</div>
                   </div>
                 </div>
+
+                {/* Contact Info (Visible to owner or participants if enabled by API) */}
+                {(user.phone || user.address) && (
+                  <div className="mt-8 pt-8 border-t border-gray-100 flex flex-wrap gap-6">
+                    {user.phone && (
+                      <div className="flex items-center gap-3 bg-gray-50 px-5 py-3 rounded-2xl border border-gray-100">
+                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                          <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Phone Number</p>
+                          <p className="text-sm font-black text-gray-900">{user.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                    {user.address && (
+                      <div className="flex items-center gap-3 bg-gray-50 px-5 py-3 rounded-2xl border border-gray-100">
+                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                          <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Address</p>
+                          <p className="text-sm font-black text-gray-900">{user.address}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="bg-[#059669] rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-primary-200/50">

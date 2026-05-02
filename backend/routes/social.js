@@ -48,8 +48,9 @@ router.get('/discover', auth, async (req, res) => {
 // GET /api/social/profile/:id
 router.get('/profile/:id', auth, async (req, res) => {
   try {
+    const isOwner = req.user._id.toString() === req.params.id;
     const profile = await User.findById(req.params.id)
-      .select('-password')
+      .select(isOwner ? '-password' : '-password -phone -address')
       .populate('followers', 'name avatar role')
       .populate('following', 'name avatar role');
     if (!profile) return res.status(404).json({ message: 'User not found' });
@@ -75,12 +76,13 @@ router.post('/follow/:id', auth, async (req, res) => {
     if (!targetUser) return res.status(404).json({ message: 'User not found' });
 
     const isFollowing = currentUser.following.includes(req.params.id);
+    
     if (isFollowing) {
-      currentUser.following.pull(req.params.id);
-      targetUser.followers.pull(req.user._id);
+      await User.findByIdAndUpdate(req.user._id, { $pull: { following: req.params.id } });
+      await User.findByIdAndUpdate(req.params.id, { $pull: { followers: req.user._id } });
     } else {
-      currentUser.following.push(req.params.id);
-      targetUser.followers.push(req.user._id);
+      await User.findByIdAndUpdate(req.user._id, { $addToSet: { following: req.params.id } });
+      const updatedTarget = await User.findByIdAndUpdate(req.params.id, { $addToSet: { followers: req.user._id } }, { new: true });
 
       await Notification.create({
         recipient: targetUser._id,
@@ -88,11 +90,13 @@ router.post('/follow/:id', auth, async (req, res) => {
         type: 'follow',
         message: `${req.user.name} started following you`,
       });
+      
+      res.json({ following: true, followerCount: updatedTarget.followers.length });
+      return;
     }
 
-    await currentUser.save();
-    await targetUser.save();
-    res.json({ following: !isFollowing, followerCount: targetUser.followers.length });
+    const finalTarget = await User.findById(req.params.id);
+    res.json({ following: false, followerCount: finalTarget.followers.length });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

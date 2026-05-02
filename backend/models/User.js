@@ -27,6 +27,8 @@ const userSchema = new mongoose.Schema({
   totalDeliveries: { type: Number, default: 0 },
   rating: { type: Number, default: 0 },
   ratingCount: { type: Number, default: 0 },
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
 }, { timestamps: true });
 
 userSchema.index({ location: '2dsphere' });

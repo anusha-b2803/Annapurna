@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Donation = require('../models/Donation');
+const TrackingPath = require('../models/TrackingPath');
 const { auth } = require('../middleware/auth');
 
 // GET /api/tracking/:donationId - get tracking info
@@ -12,7 +13,20 @@ router.get('/:donationId', auth, async (req, res) => {
       .populate('recipient', 'name organizationName address location');
 
     if (!donation) return res.status(404).json({ message: 'Donation not found' });
-    res.json(donation);
+
+    // Privacy Check: Only donor, volunteer, recipient, or admin can track
+    const isParticipant = [
+      donation.donor?._id.toString(),
+      donation.volunteer?._id.toString(),
+      donation.recipient?._id.toString()
+    ].includes(req.user._id.toString());
+
+    if (!isParticipant && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to track this donation' });
+    }
+
+    const trackingPath = await TrackingPath.findOne({ donation: req.params.donationId });
+    res.json({ donation, path: trackingPath?.path || [] });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -32,6 +46,13 @@ router.post('/:donationId/update-location', auth, async (req, res) => {
       location: { type: 'Point', coordinates: [lng, lat] },
     });
 
+    // Save to TrackingPath history
+    await TrackingPath.findOneAndUpdate(
+      { donation: req.params.donationId, volunteer: req.user._id },
+      { $push: { path: { lat, lng, timestamp: new Date() } } },
+      { upsert: true, new: true }
+    );
+
     const io = req.app.get('io');
     io.to(`tracking_${req.params.donationId}`).emit('volunteer_moved', {
       donationId: req.params.donationId,
@@ -39,7 +60,7 @@ router.post('/:donationId/update-location', auth, async (req, res) => {
       volunteerId: req.user._id,
     });
 
-    res.json({ message: 'Location updated' });
+    res.json({ message: 'Location updated and persisted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
