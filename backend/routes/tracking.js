@@ -1,0 +1,48 @@
+const express = require('express');
+const router = express.Router();
+const Donation = require('../models/Donation');
+const { auth } = require('../middleware/auth');
+
+// GET /api/tracking/:donationId - get tracking info
+router.get('/:donationId', auth, async (req, res) => {
+  try {
+    const donation = await Donation.findById(req.params.donationId)
+      .populate('donor', 'name avatar phone address location')
+      .populate('volunteer', 'name avatar phone location')
+      .populate('recipient', 'name organizationName address location');
+
+    if (!donation) return res.status(404).json({ message: 'Donation not found' });
+    res.json(donation);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/tracking/:donationId/update-location - volunteer updates location
+router.post('/:donationId/update-location', auth, async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    const donation = await Donation.findById(req.params.donationId);
+    if (!donation) return res.status(404).json({ message: 'Not found' });
+    if (donation.volunteer?.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: 'Not authorized' });
+
+    // Update volunteer location
+    await require('../models/User').findByIdAndUpdate(req.user._id, {
+      location: { type: 'Point', coordinates: [lng, lat] },
+    });
+
+    const io = req.app.get('io');
+    io.to(`tracking_${req.params.donationId}`).emit('volunteer_moved', {
+      donationId: req.params.donationId,
+      location: { lat, lng },
+      volunteerId: req.user._id,
+    });
+
+    res.json({ message: 'Location updated' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
